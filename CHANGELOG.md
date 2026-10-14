@@ -6,7 +6,7 @@ How to add a release: bump `<Version>` in `BatteryMonitor/BatteryMonitor.csproj`
 same number, commit, then tag it `v<number>` (see the README, "Making a release").
 Version numbers follow `MAJOR.MINOR.PATCH`: bump PATCH for bug fixes, MINOR for new features, MAJOR for breaking changes.
 
-## [1.1.0] - 2026-10-14
+## [1.0.0] - 2026-10-14
 
 ### Added
 - **Overlay mode.** A small always-on-top readout in a screen corner, like an FPS counter. It is click-through, so
@@ -42,5 +42,8 @@ Version numbers follow `MAJOR.MINOR.PATCH`: bump PATCH for bug fixes, MINOR for 
 - The first reading used to be lost at startup, so values took a few seconds to appear.
 - Error messages are now in English.
 
-## [1.0.0]
-Original release by [lucatze](https://github.com/lucatze/BatteryMonitor).
+---
+
+This project is a fork of [lucatze/BatteryMonitor](https://github.com/lucatze/BatteryMonitor) and builds on its original 1.0.0 release.
+The version numbers here start again at 1.0.0 for this fork.
+

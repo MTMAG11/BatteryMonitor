@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -10,7 +10,7 @@
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
 
     <!-- The one place the version number lives. Bump this, add a CHANGELOG entry, then tag v<same number>. -->
-    <Version>1.1.0</Version>
+    <Version>1.0.0</Version>
     <Product>Battery Monitor</Product>
   </PropertyGroup>
 
@@ -25,3 +25,4 @@
   </ItemGroup>
 
 </Project>
+
