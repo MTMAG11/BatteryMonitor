@@ -1,4 +1,4 @@
-﻿<Window x:Class="BatteryMonitor.MainWindow"
+<Window x:Class="BatteryMonitor.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:BatteryMonitor.Controls"
@@ -141,16 +141,6 @@
                                     <TextBlock Text="Watt" FontSize="13" x:Name="PowerUnitText" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Top power users card -->
-                    <Border x:Name="AppsCard" BorderThickness="1" CornerRadius="8" Padding="12,10,12,10" Margin="0,0,0,8">
-                        <StackPanel>
-                            <TextBlock x:Name="AppsTitle" Text="TOP POWER USERS" FontSize="14" FontWeight="Bold" Margin="0,0,0,7"/>
-                            <Rectangle Height="1" x:Name="AppsSep" Margin="0,0,0,8"/>
-                            <StackPanel x:Name="AppsPanel"/>
-                            <TextBlock x:Name="AppsHint" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
                         </StackPanel>
                     </Border>
 

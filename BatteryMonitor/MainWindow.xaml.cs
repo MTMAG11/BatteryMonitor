@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -79,38 +79,6 @@ public partial class MainWindow : Window
             _overlay = null;
             if (swapWindows && !IsVisible) ShowFromTray();
         }
-    }
-
-    private void UpdateAppsCard(BatteryInfo info)
-    {
-        AppsPanel.Children.Clear();
-        if (info.TopApps == null)
-        {
-            AppsPanel.Children.Add(new TextBlock { Text = Loc.Get("apps_none"), FontSize = 13, Foreground = TextMuted });
-            return;
-        }
-
-        var peak = Math.Max(1, info.TopApps.Select(a => a.Watts).DefaultIfEmpty(0).Max());
-        void Row(string name, double watts, Brush nameBrush, Brush bar)
-        {
-            var grid = new Grid { Margin = new Thickness(0, 0, 0, 5) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.Children.Add(new Border   // proportional bar behind the name
-            {
-                Background = bar, Opacity = 0.18, CornerRadius = new CornerRadius(3),
-                HorizontalAlignment = System.Windows.HorizontalAlignment.Left, Width = Math.Max(4, 300 * watts / peak),
-            });
-            grid.Children.Add(new TextBlock { Text = name, FontSize = 13, Foreground = nameBrush, Margin = new Thickness(6, 1, 6, 1), TextTrimming = TextTrimming.CharacterEllipsis });
-            var w = new TextBlock { Text = $"{watts:F1} W", FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = TextPrimary, Margin = new Thickness(0, 1, 4, 1) };
-            Grid.SetColumn(w, 1);
-            grid.Children.Add(w);
-            AppsPanel.Children.Add(grid);
-        }
-
-        foreach (var app in info.TopApps) Row(app.Name, app.Watts, TextPrimary, Accent);
-        if (info.TopApps.Count == 0)
-            AppsPanel.Children.Add(new TextBlock { Text = Loc.Get("apps_quiet"), FontSize = 13, Foreground = TextMuted });
     }
 
     private void ResetModel_Click(object sender, RoutedEventArgs e)
@@ -300,13 +268,6 @@ public partial class MainWindow : Window
         CyclesLabel.Foreground = TextMuted;
         CyclesText.Foreground = TextPrimary;
 
-        // Top power users card
-        AppsCard.Background = CardBg;
-        AppsCard.BorderBrush = CardBorder;
-        AppsTitle.Foreground = Accent;
-        AppsSep.Fill = CardBorder;
-        AppsHint.Foreground = TextDim;
-
         // Adapter card
         AdapterCard.Background = CardBg;
         AdapterCard.BorderBrush = CardBorder;
@@ -367,8 +328,6 @@ public partial class MainWindow : Window
         OvVoltageCb.Content = Loc.Get("ov_voltage");
         OvHealthCb.Content = Loc.Get("ov_health");
         OvSystemCb.Content = Loc.Get("ov_system");
-        AppsTitle.Text     = Loc.Get("apps_card");
-        AppsHint.Text      = Loc.Get("apps_hint");
         AdapterTitle.Text  = Loc.Get("adapter_card");
         AdapterLabel.Text  = Loc.Get("adapter_label");
         AdapterHint.Text   = Loc.Get("adapter_hint");
@@ -454,7 +413,6 @@ public partial class MainWindow : Window
             ? string.Format(Loc.Get("health_tip"), info.HealthHistoryDays, info.HealthRawPercent)
               + (info.HealthTrendPercentPer30Days is { } tr ? string.Format(Loc.Get("health_trend"), tr) : "")
             : null;
-        UpdateAppsCard(info);
 
         // Watt box
         ChargeRateText.Text = info.ChargeRateWatt.HasValue ? $"{info.ChargeRateWatt.Value:F1} W" : "\u2026";

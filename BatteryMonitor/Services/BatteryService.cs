@@ -1,4 +1,4 @@
-﻿using System.Management;
+using System.Management;
 using System.Windows.Forms;
 
 namespace BatteryMonitor.Services;
@@ -67,14 +67,8 @@ public record BatteryInfo
     public double? HealthTrendPercentPer30Days { get; init; }
     public int HealthHistoryDays { get; init; }
 
-    // Where the power is going
-    public IReadOnlyList<AppPower>? TopApps { get; init; }
-    public double? SystemRestWatts { get; init; }
-    public double BackgroundWatts { get; init; }
     public string? SystemLoadBreakdown { get; init; }
 }
-
-public sealed record AppPower(string Name, double Watts);
 
 /// <summary>
 /// Rough system-load estimate while on a charger, from the adapter's rated wattage.
@@ -169,65 +163,8 @@ public class BatteryService : IDisposable
     private readonly HealthHistory _health = new(DataDir);
     private DateTime _healthTried = DateTime.MinValue;
 
-    // Where the power goes: per-app shares, refreshed every few seconds.
-    private readonly FloorTracker _floorTracker = new(DataDir);
-    private readonly AppClassifier _classifier = new();
-    private DateTime _lastAppsAt;
-    private IReadOnlyList<AppPower>? _lastApps;
-    private double? _lastRest;
-    private double _lastBackground;
-
     /// <summary>Forget everything learned about this laptop's power use and battery.</summary>
     public void ResetLoadModel() { _model.Reset(); _runtime.Reset(); _charge.Reset(); }
-
-    /// <summary>
-    /// Splits the current power draw across apps: CPU power above the idle floor goes by each app's CPU share,
-    /// GPU power by each app's share of the discrete GPU's load. Everything else is "system, screen &amp; idle".
-    /// </summary>
-    private (IReadOnlyList<AppPower>? Apps, double? Remainder, double Background) AttributeApps(
-        DateTime now, double cpuAvg, double gpuAvg,
-        (double Base, double PerCpuWatt, double PerGpuPercent, double PerBrightness) co, double? systemWatts)
-    {
-        _floorTracker.Observe(cpuAvg);
-        var floor = _floorTracker.Value;
-
-        var cpu = _sensors.ReadCpuByProcess();
-        if (cpu.Count == 0 && _lastApps == null) return (null, null, 0);       // first call only primes the counters
-
-        var gpu = _sensors.GpuByPid;
-        var sumCpu = cpu.Sum(c => c.Percent);
-        var sumGpu = gpu.Values.Sum();
-        var dynamicCpu = Math.Max(0, cpuAvg - floor) * co.PerCpuWatt;
-        var gpuWatts = co.PerGpuPercent * gpuAvg;
-
-        // Apps get their own line (grouped by friendly name, so all of Chrome's processes are one);
-        // Windows and background processes are lumped together.
-        var apps = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        double background = 0;
-        void Add(int pid, double w)
-        {
-            if (w <= 0) return;
-            if (w < 0.05) { background += w; return; }                 // too small to be worth looking up
-            if (_classifier.Classify(pid) is { } app) apps[app] = apps.GetValueOrDefault(app) + w;
-            else background += w;
-        }
-
-        if (sumCpu > 0)
-            foreach (var (pid, _, pct) in cpu) Add(pid, dynamicCpu * pct / sumCpu);
-        if (sumGpu > 0)
-            foreach (var (pid, util) in gpu) Add(pid, gpuWatts * util / sumGpu);
-
-        var top = apps.Where(kv => kv.Value >= 0.2)
-                      .OrderByDescending(kv => kv.Value).Take(6)
-                      .Select(kv => new AppPower(kv.Key, kv.Value))
-                      .ToList();
-        // Apps below the cut-off are small enough to count as background too.
-        background += apps.Where(kv => kv.Value < 0.2).Sum(kv => kv.Value)
-                    + apps.Where(kv => kv.Value >= 0.2).OrderByDescending(kv => kv.Value).Skip(6).Sum(kv => kv.Value);
-        var attributed = top.Sum(a => a.Watts) + background;
-        double? rest = systemWatts is { } s ? Math.Max(0, s - attributed) : null;
-        return (top, rest, background);
-    }
 
     // Read-only query of the active power plan's critical battery level; refreshed every 15 minutes.
     private void RefreshReservePolicy(DateTime now)
@@ -399,9 +336,8 @@ public class BatteryService : IDisposable
             }
             var fullForCalc = _health.SmoothedFullMwh ?? _fullChargedCapacity;
 
-            // ── Learned system load, and where it goes ──
+            // ── Learned system load ──
             double? systemLoad = null; string? breakdown = null;
-            IReadOnlyList<AppPower>? topApps = _lastApps; double? restW = _lastRest; var backgroundW = _lastBackground;
             if (_sensors.CpuAvailable && _sensors.ReadCpuWatts() is { } cpuNow)
             {
                 var bright = _sensors.ReadBrightness();
@@ -422,14 +358,6 @@ public class BatteryService : IDisposable
 
                 var co = _model.Coefficients;
                 breakdown = $"Base {co.Base:F0} W + CPU {co.PerCpuWatt * cpuAvg:F0} W + GPU {co.PerGpuPercent * gpuAvg:F0} W + screen {co.PerBrightness * bright:F0} W ({bright:F0}%)";
-
-                if (now - _lastAppsAt >= TimeSpan.FromSeconds(4))
-                {
-                    _lastAppsAt = now;
-                    var sys = online ? systemLoad : (mode == Mode.Discharging ? smoothed : null);
-                    (topApps, restW, backgroundW) = AttributeApps(now, cpuAvg, gpuAvg, co, sys);
-                    _lastApps = topApps; _lastRest = restW; _lastBackground = backgroundW;
-                }
             }
 
             // Slow (about 2 min) average of the draw; also the "recent" guess for the self-checking predictor.
@@ -480,9 +408,6 @@ public class BatteryService : IDisposable
                 SmoothedFullChargeMwh = _health.SmoothedFullMwh,
                 HealthTrendPercentPer30Days = _health.TrendPercentPer30Days,
                 HealthHistoryDays = _health.DaysCovered,
-                TopApps = topApps,
-                SystemRestWatts = restW,
-                BackgroundWatts = backgroundW,
                 SystemLoadBreakdown = breakdown,
             };
 
@@ -612,7 +537,6 @@ public class BatteryService : IDisposable
         _timer?.Dispose();
         _model.Save();
         _charge.Save();
-        _floorTracker.Save();
         _runtime.Shutdown();
     }
 }

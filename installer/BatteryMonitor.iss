@@ -1,11 +1,11 @@
 ; Inno Setup script for Battery Monitor. release.ps1 (and the release workflow) compile it for you:
-;   ISCC /DMyAppVersion=1.0.0 /DArch=x64 installer\BatteryMonitor.iss
+;   ISCC /DMyAppVersion=1.0.1 /DArch=x64 installer\BatteryMonitor.iss
 ; It installs the self-contained exe, so it works on a PC with nothing else installed.
 ;
 ; Do NOT change AppId: it is how Windows tells "an upgrade of Battery Monitor" from "a different app".
 
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.0"
+  #define MyAppVersion "1.0.1"
 #endif
 #ifndef Arch
   #define Arch "x64"

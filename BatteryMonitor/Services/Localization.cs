@@ -1,4 +1,4 @@
-﻿namespace BatteryMonitor.Services;
+namespace BatteryMonitor.Services;
 
 public static class Loc
 {
@@ -85,12 +85,6 @@ public static class Loc
             ["adapter_label"]   = "Adapter rating (fallback)",
             ["adapter_hint"]    = "Your laptop doesn't report charger power, so system load is estimated. It is learned from time on battery, where the discharge rate is the real system draw. The rating below is only used if the learned estimate isn't available (≤ means at most).",
             ["runtime_tip"]     = "Self-checking estimate: counts down to {0:F0}% (where your laptop actually stops), typical error about ±{1:P0}, has checked itself {2} times.",
-            ["apps_card"]       = "TOP POWER USERS",
-            ["apps_rest"]       = "System, screen & idle",
-            ["apps_background"] = "Windows & background",
-            ["apps_none"]       = "Collecting data…",
-            ["apps_quiet"]      = "No apps are using noticeable power right now.",
-            ["apps_hint"]       = "Estimated: each app's share of CPU and GPU use, scaled by the learned power model.",
             ["health_tip"]      = "Health is smoothed over Windows' battery history ({0} days). The gauge reads {1:F0}% right now and wobbles from day to day.",
             ["health_trend"]    = " Trend: {0:+0.0;-0.0} points per 30 days (rough).",
             ["charge_tip"]      = "Learned charging curve: {0}% of it known so far. Charging slows near full, and this accounts for that.",

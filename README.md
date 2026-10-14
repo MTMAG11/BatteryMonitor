@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
   <img src="BatteryMonitor/Resources/AppIcon.ico" width="64" height="64" alt="Battery Monitor Icon"/>
   <h1>Battery Monitor</h1>
   <p>A lightweight, real-time battery dashboard for Windows laptops.<br/>
@@ -26,7 +26,7 @@
 - **Overlay mode** — a small always-on-top readout in a screen corner, like an FPS counter. It is click-through (the mouse passes straight through it), and you choose what it shows and which corner it sits in. Toggle it anywhere with **Ctrl+Alt+O**, or start with `--overlay`
 - **Self-learning time left** — checks its own forecasts against what actually happens, learns how much a change in load lasts, and counts down to the level where Windows hibernates
 - **Learned charging time** — understands that charging slows near full
-- **Where the power goes** — while plugged in, laptops don't report how much the charger delivers, so the app learns your system's draw from battery use and shows the system load as an estimate. A "Top power users" list shows which apps use the most
+- **Where the power goes** — while plugged in, laptops don't report how much the charger delivers, so the app learns your system's draw from battery use and shows the system load as an estimate.
 - **Steadier battery health** — from Windows' own battery history, not a single wobbly reading
 - **Live battery data** — charge level, health, voltage, charge/discharge rate, smoothed and cross-checked
 - **Runtime estimate** — time until full or time remaining on battery

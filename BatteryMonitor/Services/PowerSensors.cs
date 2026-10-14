@@ -13,16 +13,10 @@ public sealed class PowerSensors
     private static readonly Regex LuidRx = new(@"luid_(0x[0-9A-Fa-f]+_0x[0-9A-Fa-f]+)", RegexOptions.Compiled);
     private static readonly Regex EngRx = new(@"engtype_(\w+)", RegexOptions.Compiled);
 
-    private static readonly Regex PidRx = new(@"pid_(\d+)", RegexOptions.Compiled);
-    private static readonly Regex InstanceSuffixRx = new(@"#\d+$", RegexOptions.Compiled);
 
     private readonly PerformanceCounter? _cpu;
-    private readonly Dictionary<int, CounterSample> _prevProc = new();
     private double _brightness = 50;
     private DateTime _brightnessChecked = DateTime.MinValue;
-
-    /// <summary>Per-process discrete-GPU utilisation (0-100) from the latest <see cref="ReadDiscreteGpuLoad"/>.</summary>
-    public IReadOnlyDictionary<int, double> GpuByPid { get; private set; } = new Dictionary<int, double>();
 
     /// <summary>Screen brightness in percent (cached 10 s); 50 if the panel doesn't report it.</summary>
     public double ReadBrightness()
@@ -43,41 +37,7 @@ public sealed class PowerSensors
         return _brightness;
     }
 
-    /// <summary>
-    /// Per-process CPU usage as a percentage of the whole CPU (all cores), keyed by process id.
-    /// The first call only primes the counters.
-    /// </summary>
-    public IReadOnlyList<(int Pid, string Name, double Percent)> ReadCpuByProcess()
-    {
-        var result = new List<(int, string, double)>();
-        try
-        {
-            var data = new PerformanceCounterCategory("Process").ReadCategory();
-            if (!data.Contains("% Processor Time") || !data.Contains("ID Process")) return result;
-            var cpuCol = data["% Processor Time"];
-            var idCol = data["ID Process"];
-            var cores = Environment.ProcessorCount;
-            var seen = new HashSet<int>();
 
-            foreach (DictionaryEntry e in cpuCol)
-            {
-                var inst = (string)e.Key;
-                if (inst is "_Total" or "Idle" || !idCol.Contains(inst)) continue;
-                var pid = (int)idCol[inst].RawValue;
-                var sample = ((InstanceData)e.Value!).Sample;
-                seen.Add(pid);
-                if (_prevProc.TryGetValue(pid, out var prev))
-                {
-                    var pct = CounterSample.Calculate(prev, sample) / cores;
-                    if (pct > 0.05) result.Add((pid, InstanceSuffixRx.Replace(inst, ""), pct));
-                }
-                _prevProc[pid] = sample;
-            }
-            foreach (var stale in _prevProc.Keys.Where(k => !seen.Contains(k)).ToList()) _prevProc.Remove(stale);
-        }
-        catch { }
-        return result;
-    }
     private readonly Dictionary<string, CounterSample> _prevGpu = new();
     private string? _dGpuLuid;
     private DateTime _luidChecked = DateTime.MinValue;
@@ -118,7 +78,6 @@ public sealed class PowerSensors
             if (!data.Contains("Utilization Percentage")) return 0;
 
             var perType = new Dictionary<string, double>();
-            var perPid = new Dictionary<int, Dictionary<string, double>>();
             var seen = new HashSet<string>();
             foreach (DictionaryEntry e in data["Utilization Percentage"])
             {
@@ -131,21 +90,12 @@ public sealed class PowerSensors
                 if (_prevGpu.TryGetValue(name, out var prev))
                 {
                     var type = EngRx.Match(name).Groups[1].Value;
-                    var v = CounterSample.Calculate(prev, sample);
-                    perType[type] = perType.GetValueOrDefault(type) + v;
-
-                    var pm = PidRx.Match(name);
-                    if (pm.Success && int.TryParse(pm.Groups[1].Value, out var pid))
-                    {
-                        if (!perPid.TryGetValue(pid, out var t)) perPid[pid] = t = new();
-                        t[type] = t.GetValueOrDefault(type) + v;
-                    }
+                    perType[type] = perType.GetValueOrDefault(type) + CounterSample.Calculate(prev, sample);
                 }
                 _prevGpu[name] = sample;
             }
             foreach (var stale in _prevGpu.Keys.Where(k => !seen.Contains(k)).ToList()) _prevGpu.Remove(stale);
 
-            GpuByPid = perPid.ToDictionary(p => p.Key, p => Math.Min(100, p.Value.Values.Max()));
             return perType.Count == 0 ? 0 : Math.Min(100, perType.Values.Max());
         }
         catch { return 0; }

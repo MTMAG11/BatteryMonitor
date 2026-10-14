@@ -6,6 +6,11 @@ How to add a release: bump `<Version>` in `BatteryMonitor/BatteryMonitor.csproj`
 same number, commit, then tag it `v<number>` (see the README, "Making a release").
 Version numbers follow `MAJOR.MINOR.PATCH`: bump PATCH for bug fixes, MINOR for new features, MAJOR for breaking changes.
 
+## [1.0.1] - 2026-10-14
+
+### Removed
+- The Top power users list: its per-app power numbers were too inaccurate to be useful.
+
 ## [1.0.0] - 2026-10-14
 
 ### Added
