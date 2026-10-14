@@ -63,7 +63,28 @@ public class TrayIconService : IDisposable
     private System.Windows.Controls.MenuItem _menuBadgeOff = null!;
     private System.Windows.Controls.MenuItem _menuBadgePercent = null!;
     private System.Windows.Controls.MenuItem _menuBadgeWatt = null!;
+    private System.Windows.Controls.MenuItem _menuOverlay = null!;
+    private System.Windows.Controls.MenuItem _menuCorner = null!;
     private System.Windows.Controls.MenuItem _menuOpen = null!;
+
+    public event Action<bool>? OverlayToggleRequested;
+    public event Action<OverlayCorner>? OverlayCornerChanged;
+
+    private static readonly (OverlayCorner Corner, string Key)[] CornerKeys =
+    [
+        (OverlayCorner.TopLeft, "corner_tl"),
+        (OverlayCorner.TopRight, "corner_tr"),
+        (OverlayCorner.BottomLeft, "corner_bl"),
+        (OverlayCorner.BottomRight, "corner_br"),
+    ];
+
+    public void SetOverlayChecked(bool on) => _menuOverlay.IsChecked = on;
+
+    public void SetOverlayCorner(OverlayCorner current)
+    {
+        foreach (System.Windows.Controls.MenuItem item in _menuCorner.Items)
+            item.IsChecked = item.Tag is OverlayCorner c && c == current;
+    }
     private System.Windows.Controls.MenuItem _menuExit = null!;
 
     private void BuildContextMenu()
@@ -99,6 +120,26 @@ public class TrayIconService : IDisposable
         menu.Items.Add(_menuBadgeWatt);
         menu.Items.Add(new System.Windows.Controls.Separator());
 
+        // Overlay
+        _menuOverlay = new System.Windows.Controls.MenuItem { Header = Loc.Get("overlay_toggle"), IsCheckable = true };
+        _menuOverlay.Click += (_, _) => OverlayToggleRequested?.Invoke(_menuOverlay.IsChecked);
+        menu.Items.Add(_menuOverlay);
+
+        _menuCorner = new System.Windows.Controls.MenuItem { Header = Loc.Get("overlay_corner") };
+        foreach (var (corner, key) in CornerKeys)
+        {
+            var item = new System.Windows.Controls.MenuItem { Header = Loc.Get(key), Tag = corner };
+            var captured = corner;
+            item.Click += (_, _) =>
+            {
+                SetOverlayCorner(captured);
+                OverlayCornerChanged?.Invoke(captured);
+            };
+            _menuCorner.Items.Add(item);
+        }
+        menu.Items.Add(_menuCorner);
+        menu.Items.Add(new System.Windows.Controls.Separator());
+
         _menuOpen = new System.Windows.Controls.MenuItem { Header = Loc.Get("open") };
         _menuOpen.Click += (_, _) => ShowRequested?.Invoke();
         menu.Items.Add(_menuOpen);
@@ -120,6 +161,10 @@ public class TrayIconService : IDisposable
         _menuBadgeWatt.Header     = Loc.Get("badge_watt");
         _menuOpen.Header          = Loc.Get("open");
         _menuExit.Header          = Loc.Get("exit");
+        _menuOverlay.Header       = Loc.Get("overlay_toggle");
+        _menuCorner.Header        = Loc.Get("overlay_corner");
+        foreach (System.Windows.Controls.MenuItem item in _menuCorner.Items)
+            item.Header = Loc.Get(CornerKeys.First(k => k.Corner.Equals(item.Tag)).Key);
         if (_lastInfo != null) UpdateIcon(_lastInfo);
     }
 

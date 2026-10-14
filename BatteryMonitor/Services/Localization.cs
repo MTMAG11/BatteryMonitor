@@ -1,4 +1,4 @@
-namespace BatteryMonitor.Services;
+﻿namespace BatteryMonitor.Services;
 
 public static class Loc
 {
@@ -10,12 +10,13 @@ public static class Loc
     public static string Current => _lang;
 
     public static string Get(string key) =>
-        _strings.TryGetValue(_lang, out var d) && d.TryGetValue(key, out var v) ? v : key;
+        _strings.TryGetValue(_lang, out var d) && d.TryGetValue(key, out var v) ? v
+        : _strings["en"].TryGetValue(key, out var fallback) ? fallback
+        : key;
 
     public static IReadOnlyList<(string Code, string Name)> Languages { get; } =
     [
         ("en", "English"),
-        ("de", "Deutsch"),
         ("fr", "Français"),
         ("es", "Español"),
         ("it", "Italiano"),
@@ -48,7 +49,7 @@ public static class Loc
             ["on_battery"]      = "Battery",
             ["charge_level"]    = "CHARGE",
             ["health"]          = "HEALTH",
-            ["charge_rate"]     = "CHARGE RATE",
+            ["charge_rate"]     = "INTO BATTERY",
             ["discharge"]       = "DISCHARGE",
             ["forecast"]        = "FORECAST",
             ["full_in"]         = "FULL IN",
@@ -78,44 +79,48 @@ public static class Loc
             ["exit"]            = "Exit",
             ["charging_tt"]     = "Charging",
             ["discharging_tt"]  = "Discharging",
-        },
-        ["de"] = new()
-        {
-            ["charging"]        = "Lädt",
-            ["on_power"]        = "Am Strom",
-            ["on_battery"]      = "Akku",
-            ["charge_level"]    = "LADESTAND",
-            ["health"]          = "GESUNDHEIT",
-            ["charge_rate"]     = "LADELEISTUNG",
-            ["discharge"]       = "ENTLADUNG",
-            ["forecast"]        = "PROGNOSE",
-            ["full_in"]         = "VOLL IN",
-            ["runtime"]         = "RESTLAUFZEIT",
-            ["hours_min"]       = "Std:Min",
-            ["minutes"]         = "Minuten",
-            ["consumption"]     = "VERBRAUCH",
-            ["voltage"]         = "SPANNUNG",
-            ["volt"]            = "Volt",
-            ["watt"]            = "Watt",
-            ["capacity"]        = "KAPAZITÄT",
-            ["design_cap"]      = "Design-Kapazität",
-            ["full_cap"]        = "Ist-Kapazität",
-            ["remaining"]       = "Verbleibend",
-            ["device"]          = "GERÄT & AKKU",
-            ["model"]           = "Modell",
-            ["manufacturer"]    = "Hersteller",
-            ["serial"]          = "Seriennummer",
-            ["updated"]         = "Aktualisiert",
-            ["show_percent"]    = "Anzeige: Ladestand",
-            ["show_watt"]       = "Anzeige: Watt",
-            ["show_mwh"]        = "Anzeige: mWh",
-            ["badge_off"]       = "Badge: Aus",
-            ["badge_percent"]   = "Badge: Ladestand",
-            ["badge_watt"]      = "Badge: Watt",
-            ["open"]            = "Öffnen",
-            ["exit"]            = "Beenden",
-            ["charging_tt"]     = "Laden",
-            ["discharging_tt"]  = "Entladung",
+            ["cycles"]          = "Charge Cycles",
+            ["system_est"]      = "SYSTEM (EST.)",
+            ["adapter_card"]    = "SYSTEM LOAD (PLUGGED IN)",
+            ["adapter_label"]   = "Adapter rating (fallback)",
+            ["adapter_hint"]    = "Your laptop doesn't report charger power, so system load is estimated. It is learned from time on battery, where the discharge rate is the real system draw. The rating below is only used if the learned estimate isn't available (≤ means at most).",
+            ["runtime_tip"]     = "Self-checking estimate: counts down to {0:F0}% (where your laptop actually stops), typical error about ±{1:P0}, has checked itself {2} times.",
+            ["apps_card"]       = "TOP POWER USERS",
+            ["apps_rest"]       = "System, screen & idle",
+            ["apps_background"] = "Windows & background",
+            ["apps_none"]       = "Collecting data…",
+            ["apps_quiet"]      = "No apps are using noticeable power right now.",
+            ["apps_hint"]       = "Estimated: each app's share of CPU and GPU use, scaled by the learned power model.",
+            ["health_tip"]      = "Health is smoothed over Windows' battery history ({0} days). The gauge reads {1:F0}% right now and wobbles from day to day.",
+            ["health_trend"]    = " Trend: {0:+0.0;-0.0} points per 30 days (rough).",
+            ["charge_tip"]      = "Learned charging curve: {0}% of it known so far. Charging slows near full, and this accounts for that.",
+            ["model_status"]    = "Learned estimate",
+            ["model_none"]      = "no data yet — unplug for a while to teach it",
+            ["model_reset"]     = "Reset learning",
+            ["q_learning"]      = "learning",
+            ["q_rough"]         = "rough",
+            ["q_fair"]          = "fair",
+            ["q_good"]          = "good",
+            ["ov_system"]       = "System load (est.)",
+            ["overlay_card"]    = "OVERLAY",
+            ["ov_percent"]      = "Charge %",
+            ["ov_watt"]         = "Watt",
+            ["ov_time"]         = "Time left",
+            ["ov_voltage"]      = "Voltage",
+            ["ov_health"]       = "Health",
+            ["ov_charge_circle"] = "Charge circle",
+            ["ov_health_circle"] = "Health circle",
+            ["overlay_hotkey"]  = "Hotkey to toggle overlay:",
+            ["overlay_hotkey_fail"] = "Hotkey unavailable (already used by another app)",
+            ["startup_prompt"]  = "How do you want to start?",
+            ["startup_window"]  = "Normal window",
+            ["startup_overlay"] = "Overlay (corner box, click-through)",
+            ["overlay_toggle"]  = "Overlay mode",
+            ["overlay_corner"]  = "Overlay corner",
+            ["corner_tl"]       = "Top left",
+            ["corner_tr"]       = "Top right",
+            ["corner_bl"]       = "Bottom left",
+            ["corner_br"]       = "Bottom right",
         },
         ["fr"] = new()
         {

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -49,6 +49,123 @@ public partial class MainWindow : Window
     }
 
     private readonly AppSettings _settings;
+    private OverlayWindow? _overlay;
+    private OverlayCorner _overlayCorner;
+    private readonly HotkeyService _hotkey;
+
+    /// <summary>Launch straight into the click-through overlay with the main window hidden.</summary>
+    public void StartInOverlayMode()
+    {
+        _trayService.SetVisible(true);
+        SetOverlay(true);
+    }
+
+    private void SetOverlay(bool on, bool swapWindows = true)
+    {
+        _trayService.SetOverlayChecked(on);
+        if (on)
+        {
+            if (_overlay == null)
+            {
+                _overlay = new OverlayWindow(_overlayCorner, _settings);
+                if (_lastBatteryInfo != null) _overlay.UpdateInfo(_lastBatteryInfo);
+                _overlay.Show();
+            }
+            if (swapWindows && IsVisible) HideToTray();
+        }
+        else
+        {
+            _overlay?.Close();
+            _overlay = null;
+            if (swapWindows && !IsVisible) ShowFromTray();
+        }
+    }
+
+    private void UpdateAppsCard(BatteryInfo info)
+    {
+        AppsPanel.Children.Clear();
+        if (info.TopApps == null)
+        {
+            AppsPanel.Children.Add(new TextBlock { Text = Loc.Get("apps_none"), FontSize = 13, Foreground = TextMuted });
+            return;
+        }
+
+        var peak = Math.Max(1, info.TopApps.Select(a => a.Watts).DefaultIfEmpty(0).Max());
+        void Row(string name, double watts, Brush nameBrush, Brush bar)
+        {
+            var grid = new Grid { Margin = new Thickness(0, 0, 0, 5) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.Children.Add(new Border   // proportional bar behind the name
+            {
+                Background = bar, Opacity = 0.18, CornerRadius = new CornerRadius(3),
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Left, Width = Math.Max(4, 300 * watts / peak),
+            });
+            grid.Children.Add(new TextBlock { Text = name, FontSize = 13, Foreground = nameBrush, Margin = new Thickness(6, 1, 6, 1), TextTrimming = TextTrimming.CharacterEllipsis });
+            var w = new TextBlock { Text = $"{watts:F1} W", FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = TextPrimary, Margin = new Thickness(0, 1, 4, 1) };
+            Grid.SetColumn(w, 1);
+            grid.Children.Add(w);
+            AppsPanel.Children.Add(grid);
+        }
+
+        foreach (var app in info.TopApps) Row(app.Name, app.Watts, TextPrimary, Accent);
+        if (info.TopApps.Count == 0)
+            AppsPanel.Children.Add(new TextBlock { Text = Loc.Get("apps_quiet"), FontSize = 13, Foreground = TextMuted });
+    }
+
+    private void ResetModel_Click(object sender, RoutedEventArgs e)
+    {
+        _batteryService.ResetLoadModel();
+        UpdateModelStatus();
+    }
+
+    private void UpdateModelStatus()
+    {
+        var (quality, error, samples) = _batteryService.LoadModelStatus;
+        ModelStatusText.Text = samples < 1
+            ? $"{Loc.Get("model_status")}: {Loc.Get("model_none")}"
+            : $"{Loc.Get("model_status")}: {Loc.Get("q_" + quality)}"
+              + (double.IsNaN(error) ? "" : $", ±{error:F1} W")
+              + $"  ·  {samples:F0} samples";
+    }
+
+    private void AdapterBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var text = AdapterBox.Text.Trim().Replace(',', '.');
+        var ok = double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var w) && w is > 0 and <= 500;
+        _settings.AdapterWatts = ok ? w : 0;
+        _settings.Save();
+        if (_lastBatteryInfo != null) UpdateUI(_lastBatteryInfo);
+    }
+
+    private void OverlayOption_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.OverlayShowPercent = OvPercentCb.IsChecked == true;
+        _settings.OverlayShowWatt = OvWattCb.IsChecked == true;
+        _settings.OverlayShowTime = OvTimeCb.IsChecked == true;
+        _settings.OverlayShowVoltage = OvVoltageCb.IsChecked == true;
+        _settings.OverlayShowHealth = OvHealthCb.IsChecked == true;
+        _settings.OverlayShowSystem = OvSystemCb.IsChecked == true;
+        _settings.OverlayShowChargeCircle = OvChargeCircleCb.IsChecked == true;
+        _settings.OverlayShowHealthCircle = OvHealthCircleCb.IsChecked == true;
+        _settings.Save();
+        _overlay?.Refresh();
+    }
+
+    private void LoadOverlayOptions()
+    {
+        OvPercentCb.IsChecked = _settings.OverlayShowPercent;
+        OvWattCb.IsChecked = _settings.OverlayShowWatt;
+        OvTimeCb.IsChecked = _settings.OverlayShowTime;
+        OvVoltageCb.IsChecked = _settings.OverlayShowVoltage;
+        OvHealthCb.IsChecked = _settings.OverlayShowHealth;
+        OvSystemCb.IsChecked = _settings.OverlayShowSystem;
+        AdapterBox.Text = _settings.AdapterWatts > 0 ? _settings.AdapterWatts.ToString("0.##") : "";
+        OvChargeCircleCb.IsChecked = _settings.OverlayShowChargeCircle;
+        OvHealthCircleCb.IsChecked = _settings.OverlayShowHealthCircle;
+    }
+
+    private void OverlayToggle_Click(object sender, RoutedEventArgs e) => SetOverlay(_overlay == null);
 
     public MainWindow()
     {
@@ -70,15 +187,36 @@ public partial class MainWindow : Window
             if (_lastBatteryInfo != null) UpdateBadge(_lastBatteryInfo);
         });
 
-        _batteryService = new BatteryService();
-        _batteryService.BatteryUpdated += info => Dispatcher.Invoke(() => UpdateUI(info));
-        _batteryService.ErrorChanged += err => Dispatcher.Invoke(() => ErrorText.Text = err ?? "");
+        _overlayCorner = Enum.TryParse<OverlayCorner>(_settings.OverlayCorner, out var corner)
+            ? corner : OverlayCorner.TopRight;
+        _trayService.SetOverlayCorner(_overlayCorner);
+        _trayService.OverlayToggleRequested += on => Dispatcher.Invoke(() => SetOverlay(on));
+        _trayService.OverlayCornerChanged += c => Dispatcher.Invoke(() =>
+        {
+            _overlayCorner = c;
+            _overlay?.SetCorner(c);
+            _settings.OverlayCorner = c.ToString();
+            _settings.Save();
+        });
 
+        LoadOverlayOptions();
+        _hotkey = new HotkeyService();
+        _hotkey.Pressed += () => Dispatcher.Invoke(() => SetOverlay(_overlay == null, swapWindows: false));
+
+        _batteryService = new BatteryService();
+        _batteryService.BatteryUpdated += info => Dispatcher.BeginInvoke(() => UpdateUI(info));
+        _batteryService.ErrorChanged += err => Dispatcher.BeginInvoke(() => ErrorText.Text = err ?? "");
+        _batteryService.Start();
+
+        // Closing the window hides it to the tray, except when the app is really quitting
+        // (Exit menu, Windows shutting down, or the installer asking it to close).
         Closing += (_, e) =>
         {
+            if (_exiting) return;
             e.Cancel = true;
             HideToTray();
         };
+        Application.Current.SessionEnding += (_, _) => _exiting = true;
 
         ApplyTheme();
         ApplyLocalization();
@@ -106,6 +244,7 @@ public partial class MainWindow : Window
         ThemeToggleBtn.Content = _isDarkMode ? "\u2600" : "\u263E"; // sun / moon
         ThemeToggleBtn.Foreground = TextMuted;
         MinimizeBtn.Foreground = TextMuted;
+        OverlayBtn.Foreground = TextMuted;
         CloseBtn.Foreground = TextPrimary;
 
         // Device subline
@@ -158,6 +297,38 @@ public partial class MainWindow : Window
         ManufacturerText.Foreground = TextPrimary;
         SnLabel.Foreground = TextMuted;
         SerialText.Foreground = TextPrimary;
+        CyclesLabel.Foreground = TextMuted;
+        CyclesText.Foreground = TextPrimary;
+
+        // Top power users card
+        AppsCard.Background = CardBg;
+        AppsCard.BorderBrush = CardBorder;
+        AppsTitle.Foreground = Accent;
+        AppsSep.Fill = CardBorder;
+        AppsHint.Foreground = TextDim;
+
+        // Adapter card
+        AdapterCard.Background = CardBg;
+        AdapterCard.BorderBrush = CardBorder;
+        AdapterTitle.Foreground = Accent;
+        AdapterSep.Fill = CardBorder;
+        AdapterLabel.Foreground = TextPrimary;
+        AdapterUnit.Foreground = TextMuted;
+        AdapterHint.Foreground = TextDim;
+        ModelStatusText.Foreground = TextPrimary;
+        AdapterBox.Background = Bg;
+        AdapterBox.Foreground = TextPrimary;
+        AdapterBox.BorderBrush = CardBorder;
+        AdapterBox.CaretBrush = TextPrimary;
+
+        // Overlay card
+        OverlayCard.Background = CardBg;
+        OverlayCard.BorderBrush = CardBorder;
+        OverlayTitle.Foreground = Accent;
+        OverlaySep.Fill = CardBorder;
+        foreach (var cb in new[] { OvPercentCb, OvWattCb, OvTimeCb, OvVoltageCb, OvHealthCb, OvSystemCb, OvChargeCircleCb, OvHealthCircleCb })
+            cb.Foreground = TextPrimary;
+        OverlayHotkeyText.Foreground = TextMuted;
 
         // Footer
         ErrorText.Foreground = Red;
@@ -189,10 +360,30 @@ public partial class MainWindow : Window
         FullCapLabel.Text  = Loc.Get("full_cap");
         RemCapLabel.Text   = Loc.Get("remaining");
 
+        OverlayTitle.Text  = Loc.Get("overlay_card");
+        OvPercentCb.Content = Loc.Get("ov_percent");
+        OvWattCb.Content   = Loc.Get("ov_watt");
+        OvTimeCb.Content   = Loc.Get("ov_time");
+        OvVoltageCb.Content = Loc.Get("ov_voltage");
+        OvHealthCb.Content = Loc.Get("ov_health");
+        OvSystemCb.Content = Loc.Get("ov_system");
+        AppsTitle.Text     = Loc.Get("apps_card");
+        AppsHint.Text      = Loc.Get("apps_hint");
+        AdapterTitle.Text  = Loc.Get("adapter_card");
+        AdapterLabel.Text  = Loc.Get("adapter_label");
+        AdapterHint.Text   = Loc.Get("adapter_hint");
+        ResetModelBtn.Content = Loc.Get("model_reset");
+        OvChargeCircleCb.Content = Loc.Get("ov_charge_circle");
+        OvHealthCircleCb.Content = Loc.Get("ov_health_circle");
+        OverlayHotkeyText.Text = _hotkey.Registered
+            ? $"{Loc.Get("overlay_hotkey")} {HotkeyService.Description}"
+            : Loc.Get("overlay_hotkey_fail");
+
         DeviceTitle.Text   = Loc.Get("device");
         ModelLabel.Text    = Loc.Get("model");
         MfgLabel.Text      = Loc.Get("manufacturer");
         SnLabel.Text       = Loc.Get("serial");
+        CyclesLabel.Text   = Loc.Get("cycles");
 
         _trayService.ApplyLanguage();
 
@@ -259,15 +450,35 @@ public partial class MainWindow : Window
         var healthColor = info.HealthPercent >= 85 ? Green : info.HealthPercent >= 65 ? Amber : Red;
         HealthGauge.Value = info.HealthPercent;
         HealthGauge.GaugeColor = healthColor;
+        HealthGauge.ToolTip = info.SmoothedFullChargeMwh != null
+            ? string.Format(Loc.Get("health_tip"), info.HealthHistoryDays, info.HealthRawPercent)
+              + (info.HealthTrendPercentPer30Days is { } tr ? string.Format(Loc.Get("health_trend"), tr) : "")
+            : null;
+        UpdateAppsCard(info);
 
         // Watt box
         ChargeRateText.Text = info.ChargeRateWatt.HasValue ? $"{info.ChargeRateWatt.Value:F1} W" : "\u2026";
-        DischargeRateText.Text = $"{info.DischargeRateWatt:F1} W";
+        // Plugged in with a known adapter rating: show the estimated system load instead.
+        var sys = PowerSplit.ForSystem(info, _settings.AdapterWatts);
+        if (sys is { } s)
+        {
+            DischargeLabel.Text = Loc.Get("system_est");
+            DischargeRateText.Text = $"{s.Prefix} {s.Watts:F0} W";
+            DischargeRateText.ToolTip = s.Note;
+        }
+        else
+        {
+            DischargeLabel.Text = Loc.Get("discharge");
+            DischargeRateText.Text = $"{info.DischargeRateWatt:F1} W";
+            DischargeRateText.ToolTip = null;
+        }
+        UpdateModelStatus();
 
         // Estimates card
         if (info.Charging)
         {
             EstimateLabel.Text = Loc.Get("full_in");
+            EstimateTimeText.ToolTip = string.Format(Loc.Get("charge_tip"), info.ChargeCurveKnownPercent);
             var ttf = info.EstimatedTimeToFullMinutes;
             if (ttf.HasValue && ttf.Value > 0)
             {
@@ -300,6 +511,9 @@ public partial class MainWindow : Window
                 EstimateTimeText.Text = "\u2026";
                 EstimateUnitText.Text = "";
             }
+            EstimateTimeText.ToolTip = info.RuntimeErrorFraction is { } er && info.RuntimeReservePercent is { } rp
+                ? string.Format(Loc.Get("runtime_tip"), rp, er, info.RuntimeSelfChecks)
+                : null;
             PowerLabel.Text = Loc.Get("consumption");
             PowerText.Text = info.DischargeRateWatt > 0 ? info.DischargeRateWatt.ToString("F1") : "\u2026";
         }
@@ -326,6 +540,7 @@ public partial class MainWindow : Window
         ModelText.Text = info.DeviceName;
         ManufacturerText.Text = info.Manufacturer;
         SerialText.Text = info.SerialNumber;
+        CyclesText.Text = info.CycleCount?.ToString() ?? "—";
 
         // Footer
         UpdatedText.Text = $"{Loc.Get("updated")} {DateTime.Now:HH:mm:ss}";
@@ -333,6 +548,7 @@ public partial class MainWindow : Window
         // Taskbar overlay badge
         _lastBatteryInfo = info;
         UpdateBadge(info);
+        _overlay?.UpdateInfo(info);
 
         // Tray
         _trayService.UpdateIcon(info);
@@ -415,10 +631,28 @@ public partial class MainWindow : Window
         Activate();
     }
 
+    /// <summary>Show the main window in front, e.g. when the exe is launched a second time.</summary>
+    public void BringToFront()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        Topmost = true;      // nudge above other windows, then release
+        Topmost = false;
+        Activate();
+    }
+
+    private bool _exiting;
+
+    /// <summary>Quit cleanly when asked by another process (the installer's <c>--exit</c>).</summary>
+    public void ExitFromOutside() => ExitApp();
+
     private void ExitApp()
     {
+        _exiting = true;
+        _hotkey.Dispose();
         _trayService.Dispose();
         _batteryService.Dispose();
         Application.Current.Shutdown();
     }
 }
+

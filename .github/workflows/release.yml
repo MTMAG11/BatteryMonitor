@@ -1,0 +1,54 @@
+# Optional automation. When you push a tag like v1.2.0, GitHub builds all four exes on its own
+# Windows machine and publishes a release with them attached. Delete this file if you prefer
+# to build and upload releases by hand (see the README, "Making a release").
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write      # needed to create the release
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Check the tag matches the project version
+        shell: pwsh
+        run: |
+          $v = ([xml](Get-Content BatteryMonitor/BatteryMonitor.csproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          if ("v$v" -ne "${{ github.ref_name }}") { throw "Tag is ${{ github.ref_name }} but the project version is v$v. Bump <Version> in the csproj or retag." }
+
+      - name: Make sure Inno Setup (the installer builder) is available
+        shell: pwsh
+        run: |
+          $have = (Get-Command iscc -ErrorAction SilentlyContinue) -or (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")
+          if (-not $have) { choco install innosetup -y --no-progress }
+
+      - name: Build all variants and installers
+        shell: pwsh
+        run: ./release.ps1
+
+      - name: Take this version's notes from CHANGELOG.md
+        shell: pwsh
+        run: |
+          $ver  = '${{ github.ref_name }}'.TrimStart('v')
+          $text = Get-Content CHANGELOG.md -Raw
+          $m = [regex]::Match($text, "(?ms)^## \[$([regex]::Escape($ver))\][^\r\n]*\r?\n(.*?)(?=^## |\z)")
+          if ($m.Success) { $m.Groups[1].Value.Trim() | Set-Content notes.md } else { "Release $ver" | Set-Content notes.md }
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Battery Monitor ${{ github.ref_name }}
+          body_path: notes.md
+          files: |
+            release/*.exe
+            release/SHA256SUMS.txt
